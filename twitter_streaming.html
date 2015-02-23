@@ -1,0 +1,279 @@
+<html>
+<script src="https://code.jquery.com/jquery-1.10.1.min.js"></script>
+<script src="https://cdn.blockspring.com/blockspring.js"></script>
+<style>
+  body {
+      background-color:#333;
+      font-family:Arial, Helvetica, sans-serif;
+  }
+
+  img  {
+      border:none;
+  }
+
+  #controls {
+    position: relative;
+    min-height: 20px;
+  }
+
+  .autoPlayContainer {
+    position: absolute;
+    right: 5px;
+    top: 0;
+  }
+
+  #twitter-feed {
+      width:450px;
+      margin:auto;
+      font-family: Arial, Helvetica, sans-serif;
+      margin-top:60px;
+      padding:8px 10px 5px 10px;
+      border-radius:12px;
+      background-color:#FFF;
+      color:#333;
+      overflow:auto;
+  }
+
+  #twitter-feed h1 {
+      color:#5F5F5F;
+      margin:0px;
+      padding:9px 0px 9px 0px;
+      font-size:18px;
+      font-weight:lighter;
+  }
+
+  .twitter-article, #loading-container {
+      min-height: 40px;
+      width:100%;
+      border-top:1px dotted #CCC;
+      float:left;
+      padding:8px 0px 8px 0px;
+      position: relative;
+  }
+  .twitter-pic {
+      position:absolute;
+  }
+
+  .twitter-pic img {
+      float:left;
+      border-radius:7px;
+      border:none;
+
+  }
+
+  .twitter-text {
+      width:100%;
+      float:left;
+      font-size:11px;
+      padding-left:52px;
+      -moz-box-sizing: border-box;
+      -webkit-box-sizing: border-box;
+      box-sizing: border-box;
+  }
+  .twitter-text p {
+      margin:0px;
+      line-height:15px;
+  }
+  .twitter-text a,  h1 a {
+      color: #00acee;
+      text-decoration: none;
+  }
+  .twitter-text a:hover,  h1 a:hover {
+      text-decoration: underline;
+      color: #00acee;
+  }
+
+  .tweetprofilelink a {
+      color:#444;
+  }
+  .tweetprofilelink a:hover {
+      color:#444;
+  }
+</style>
+<script>
+  $(document).ready(function(){
+    // global holding variable
+    var holding = [];
+
+    // format each tweet with proper links and images.
+    var replaceMedia = function(text, entities){
+      // replace urls
+      if ( "urls" in entities ) {
+        entities.urls.forEach(function(url_entity){
+          text = replaceAll(url_entity.url, "<a href='" + url_entity.expanded_url+"' target='_blank'>" + url_entity.url+"</a>", text);
+        })
+      }
+
+      // replace hashtags
+      if ( "hashtags" in entities ) {
+        entities.hashtags.forEach(function(hashtag_entity){
+          text = replaceAll("#"+hashtag_entity.text, "<a href='https://twitter.com/hashtag/" + hashtag_entity.text+"' target='_blank'>#" + hashtag_entity.text+"</a>", text);
+        })
+      }
+
+      // replace user_mentions
+      if ( "user_mentions" in entities ) {
+        entities.user_mentions.forEach(function(user_mentions_entity){
+          text = replaceAll("@" + user_mentions_entity.screen_name, "<a href='https://twitter.com/" + user_mentions_entity.screen_name+"' target='_blank'>@" + user_mentions_entity.screen_name+"</a>", text);
+        })
+      }
+
+      var images = [];
+      // replace media
+      if ( "media" in entities ) {
+        entities.media.forEach(function(media_entity){
+          text = replaceAll(media_entity.url, "<a href='"+ media_entity.url+"' target='_blank'>" + media_entity.url+"</a>", text);
+          if (media_entity.type == "photo" && "media_url" in media_entity){
+            images.push(media_entity.media_url)
+          }
+        })
+      }
+
+      return {text: text, images: images}
+    }
+
+    // build html of each tweet.
+    var buildTweet = function(tweet){
+      var profile_url = "https://twitter.com/" + tweet.user.screen_name;
+      var replacement_entity = replaceMedia(tweet.text, tweet.entities);
+      var text = replacement_entity.text;
+      var images = replacement_entity.images;
+
+      var $tweet = $("<div>")
+        .addClass("twitter-article")
+        .append(
+          $("<div>")
+            .addClass("twitter-pic")
+            .append(
+              $("<a>")
+                .attr("href", profile_url)
+                .attr("target", "_blank")
+                .append(
+                  $("<img>")
+                    .attr("src", tweet.user.profile_image_url_https)
+                    .attr("width", 42)
+                    .attr("height", 42)
+                )
+            ),
+          $("<div>")
+            .addClass("twitter-text")
+            .append(
+              $("<p>")
+                .append(
+                  $("<span>")
+                    .addClass("tweetprofilelink")
+                    .append(
+                      $("<strong>")
+                        .append(
+                          $("<a>")
+                            .attr("href", profile_url)
+                            .attr("target", "_blank")
+                            .text(tweet.user.name),
+                          " ",
+                          $("<a>")
+                            .attr("href", profile_url)
+                            .attr("target", "_blank")
+                            .text("@" + tweet.user.screen_name)
+                        )
+                    ),
+                  $("<span>"),
+                  $("<br>"),
+                  $("<span>").html(text)
+                )
+            )
+        )
+      images.forEach(function(image){
+        $tweet.append(
+          $("<img>").width(100).attr("src", image)
+        )
+      })
+
+      return $tweet;
+    }
+
+    // clear all tweets and enter ones in holding bay.
+    var addAndClearTweets = function(){
+      $('#tweets').empty();
+
+      holding.forEach(function(tweet, i){
+        if ("user" in tweet && "name" in tweet.user && !tweet.retweeted){
+          $('#tweets').append(buildTweet(tweet));
+        }
+      })
+
+      holding = [];
+    };
+
+    $('#playFeed').click(function(){
+      if (holding.length > 0 ){
+        addAndClearTweets();
+      }
+      $('#message').text("0");
+    })
+
+    $("#autoPlay").click( function(){
+       if( $(this).is(':checked') ) {
+        $("#playFeed").hide();
+        if (holding.length > 0 ){
+          addAndClearTweets();
+        }
+       } else {
+        $("#playFeed").show();
+       }
+    });
+
+    var addToHolding = function(tweets){
+      holding = holding.concat(tweets);
+      if ($("#autoPlay").is(":checked")){
+        addAndClearTweets();
+      } else {
+        $('#message').text(holding.length);
+      }
+    }
+
+    // start the polling
+    poll();
+
+    function poll() {
+      var search_query = $('#search-query').val();
+
+      setTimeout(function() {
+        blockspring.runParsed("0c1a08677d1ba85e4f213fb5177a83f0", {
+          "search_query": search_query,
+          "time_to_stream": 3000
+        }, {
+          api_key: "140afbe11f07ed9d96b026065d6cddf7",
+          cache: true,
+          expiry: 4
+        }, function(response){
+          // log response from blockspring.
+          console.log(response);
+          addToHolding(response.params.tweets);
+          poll();
+        })
+      }, 5000);
+    };
+
+    // helper function for replacing in string.
+    function replaceAll(find, replace, str) {
+      return str.replace(new RegExp(find, 'g'), replace);
+    }
+  });
+</script>
+<body>
+  <div id="twitter-feed">
+    <div>
+      <label>What tweets to stream?</label>
+      <input id="search-query" type="text" value="oscars, #Oscars"></input>
+    </div>
+    <div id="controls">
+      <a id="playFeed" href="#">Manual refresh (<span id="message">0</span>)</a>
+      <div class="autoPlayContainer">
+        <label>Auto-load tweets</label>
+        <input id="autoPlay" type="checkbox"></input>
+      </div>
+    </div>
+    <div id="tweets"></div>
+  </div>
+</body>
+</html>
